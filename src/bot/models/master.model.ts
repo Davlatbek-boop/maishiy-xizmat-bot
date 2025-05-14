@@ -3,8 +3,8 @@ import { Column, DataType, Model, Table } from 'sequelize-typescript';
 interface IMasterCreationAttr {
   user_id: number;
   username: string;
-  last_state: string
-  profession: string
+  last_state: string;
+  profession: string;
 }
 
 @Table({ tableName: 'masters' })
@@ -77,7 +77,14 @@ export class Master extends Model<Master, IMasterCreationAttr> {
   declare time_by_customer: string;
 
   @Column({
+    type: DataType.BOOLEAN,
+    defaultValue: false
+  })
+  declare status: boolean;
+
+  @Column({
     type: DataType.STRING,
+    defaultValue: '',
   })
   declare last_state: string;
 }

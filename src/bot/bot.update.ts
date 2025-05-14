@@ -27,6 +27,28 @@ export class BotUpdate {
     return this.botService.onActionMasters(ctx)
   }
 
+  @Action(/^registr_\d+$/)
+  async onActionSendToAdminAndDeleteMaster(@Ctx() ctx: Context){
+    return this.botService.onActionSendToAdminAndDeleteMaster(ctx)
+  }
+
+  @Action(/^sended_\d+$/)
+  async onActionCheckAndDeleteAndConnectByAdmin(@Ctx() ctx: Context){
+    return this.botService.onActionCheckAndDeleteAndConnectByAdmin(ctx)
+  }
+
+  @Action(/^confirm_master_+\d/)
+  async onConfirmMaster(@Ctx() ctx: Context) {
+    await this.botService.onConfirmMaster(ctx);
+  }
+
+
+  // @Action(/^reject_master_+\d/)
+  // async onRejectMaster(@Ctx() ctx: Context) {
+  //   await this.botService.OnRejection(ctx);
+  // }
+
+
   @On('location')
   async onLocation(@Ctx() ctx: Context){
     await this.botService.onLocation(ctx)

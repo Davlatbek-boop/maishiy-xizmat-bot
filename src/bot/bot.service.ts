@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Ctx, InjectBot } from 'nestjs-telegraf';
+import { InjectBot } from 'nestjs-telegraf';
 import { BOT_NAME } from '../app.constants';
 import { Context, Markup, Telegraf } from 'telegraf';
-import { text } from 'stream/consumers';
 import { InjectModel } from '@nestjs/sequelize';
 import { Master } from './models/master.model';
 import { Op } from 'sequelize';
@@ -16,8 +15,10 @@ export class BotService {
 
   async onStart(ctx: Context) {
     try {
-      await ctx.replyWithHTML('Assalomu alaykum', {
-        ...Markup.keyboard([["Ro'yxatdan o'tish"]]).resize(),
+      await ctx.replyWithHTML('Maishiy xizmatlar botiga hush kelibsiz', {
+        ...Markup.keyboard([["Ro'yxatdan o'tish"]])
+          .oneTime()
+          .resize(),
       });
     } catch (error) {
       console.log(`Error on Start`, error);
@@ -27,7 +28,9 @@ export class BotService {
   async onRegistr(ctx: Context) {
     try {
       await ctx.replyWithHTML('Tanlang', {
-        ...Markup.keyboard([['Usta', 'Mijoz']]).resize(),
+        ...Markup.keyboard([['Usta', 'Mijoz']])
+          .oneTime()
+          .resize(),
       });
     } catch (error) {
       console.log(`Error on Registr`, error);
@@ -36,6 +39,9 @@ export class BotService {
 
   async onRegistrUsta(ctx: Context) {
     try {
+      const user_id = ctx.from?.id;
+      const master = await this.masterModel.findOne({ where: { user_id } });
+
       const workshop = [
         [
           {
@@ -68,8 +74,6 @@ export class BotService {
           },
         ],
       ];
-
-      await ctx.reply('Siz Usta ni tanladingiz', Markup.removeKeyboard());
       await ctx.reply(
         'Mutaxasisligingizni tanlang',
         Markup.inlineKeyboard(workshop),
@@ -95,61 +99,221 @@ export class BotService {
             last_state: 'name',
           });
         }
+
         await ctx.deleteMessage();
         await ctx.replyWithHTML('Ismingizni kiriting');
-      }
-      switch (master?.last_state) {
-        case 'name':
-          await ctx.replyWithHTML(`Ismingizni kiriting`);
-          break;
+      } else {
+        if (master!.last_state == 'finish') {
+          this.getMasterProfils(master!, ctx);
+          return;
+        }
+        switch (master?.last_state) {
+          case 'name':
+            await ctx.replyWithHTML(`Ismingizni kiriting`);
+            break;
 
-        case 'phone_number':
-          await ctx.replyWithHTML(
-            `Iltimos, telefon raqamingizni yuboring!`,
-            Markup.keyboard([
-              [Markup.button.contactRequest('📞Telefon raqam yuborish!')],
-            ])
-              .oneTime()
-              .resize(),
-          );
-          break;
+          case 'phone_number':
+            await ctx.replyWithHTML(
+              `Iltimos, telefon raqamingizni yuboring!`,
+              Markup.keyboard([
+                [Markup.button.contactRequest('📞Telefon raqam yuborish!')],
+              ])
+                .oneTime()
+                .resize(),
+            );
+            break;
 
-        case 'workshop_name':
-          await ctx.replyWithHTML(`Ustaxona nomini kiriting`);
-          break;
+          case 'workshop_name':
+            await ctx.replyWithHTML(`Ustaxona nomini kiriting`);
+            break;
 
-        case 'address':
-          await ctx.replyWithHTML(`Ustaxona manzilini kiriting`);
-          break;
+          case 'address':
+            await ctx.replyWithHTML(`Ustaxona manzilini kiriting`);
+            break;
 
-        case 'destination':
-          await ctx.replyWithHTML(`Manzil uchun moljal kiriting`);
-          break;
+          case 'destination':
+            await ctx.replyWithHTML(`Manzil uchun moljal kiriting`);
+            break;
 
-        case 'location':
-          await ctx.replyWithHTML(`Manzil locatsiyasini yuboring`);
-          break;
+          case 'location':
+            await ctx.replyWithHTML(`Manzil locatsiyasini yuboring`);
+            break;
 
-        case 'start_time':
-          await ctx.replyWithHTML(
-            `Kunning ish boshlash vaqtini kiriting ex: 8:00`,
-          );
-          break;
+          case 'start_time':
+            await ctx.replyWithHTML(
+              `Kunning ish boshlash vaqtini kiriting ex: 8:00`,
+            );
+            break;
 
-        case 'end_time':
-          await ctx.replyWithHTML(
-            `Kunning ish tugash vaqtini kiriting ex: 17:00`,
-          );
-          break;
+          case 'end_time':
+            await ctx.replyWithHTML(
+              `Kunning ish tugash vaqtini kiriting ex: 17:00`,
+            );
+            break;
 
-        case 'time_by_customer':
-          await ctx.replyWithHTML(
-            `Bitta mijoz uchun ketadigan o'rtacha vaqtni kiritng ex: 30:00`,
-          );
-          break;
+          case 'time_by_customer':
+            await ctx.replyWithHTML(
+              `Bitta mijoz uchun ketadigan o'rtacha vaqtni kiritng ex: 30`,
+            );
+            break;
+
+          default:
+            await ctx.editMessageReplyMarkup(undefined);
+            break;
+        }
       }
     } catch (error) {
       console.log(`Error on action Masters`, error);
+    }
+  }
+
+  async onActionSendToAdminAndDeleteMaster(ctx: Context) {
+    try {
+      const user_id = ctx.from?.id;
+      const master = await this.masterModel.findOne({ where: { user_id } });
+
+      if (!master) {
+        await ctx.reply(`Siz avval Startni bosing`, {
+          parse_mode: 'HTML',
+          ...Markup.keyboard([['/start']]).resize(),
+        });
+      } else {
+        if ('data' in ctx.callbackQuery!) {
+          const data = ctx.callbackQuery.data;
+          const ADMIN = process.env.ADMIN;
+          if (data == 'registr_3') {
+            const message = `👤 Master Info:
+  📛 Name: ${master.name}
+  📱 Phone: ${master.phone_number}
+  ✅ Ustaxona nomi: ${master.workshop_name}
+  🏢 Manzili: ${master.address}
+  🎯 Mo'ljal: ${master.destination}
+  🏠 Locatsiya: ${master.location || 'Not Provided'}
+  ⏲️ Ishni boshlash vaqti: ${master.start_time}
+  ⏲️ Ishni yakunlash vaqti: ${master.end_time}
+  ⏳ Har bir mijoz uchun o'rtacha sarflanadigan vaqt: ${master.time_by_customer} daqiqa`;
+
+            await ctx.telegram.sendMessage(ADMIN!, message, {
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    {
+                      text: '✅ Ustani Tasdiqlash',
+                      callback_data: `confirm_master_${master.user_id}`,
+                    },
+                    {
+                      text: '❌ Ustani Bekor qilish',
+                      callback_data: `reject_master_${master.user_id}`,
+                    },
+                  ],
+                ],
+              },
+            });
+            const contextMessage = ctx.callbackQuery?.message;
+
+            if (contextMessage?.message_id) {
+              await ctx.deleteMessage(contextMessage.message_id);
+            }
+            await ctx.replyWithHTML(
+              'Malumotlaringiz tasdiqlash uchun adminga yuborildi.',
+              Markup.inlineKeyboard([
+                [
+                  {
+                    text: '✅ Tekshirish',
+                    callback_data: `sended_1`,
+                  },
+                  {
+                    text: '❌ Bekor qilish',
+                    callback_data: `sended_2`,
+                  },
+                ],
+                [
+                  {
+                    text: 'Admin bilan boglanish',
+                    callback_data: `sended_3`,
+                  },
+                ],
+              ]),
+            );
+          } else if (data == 'registr_2') {
+            this.deleteMaster(ctx, user_id!);
+          }
+        }
+      }
+    } catch (error) {
+      console.log('error on onActionSendToAdminAndDeleteMaster', error);
+    }
+  }
+
+  async onConfirmMaster(ctx: Context) {
+    try {
+      const user_id = ctx.from?.id;
+      const admin = await this.masterModel.findOne({ where: { user_id } });
+      if ('data' in ctx.callbackQuery!) {
+        const data = ctx.callbackQuery.data;
+        const master_id = data.split('_')[2];
+        const master = await this.masterModel.findOne({
+          where: { user_id: master_id },
+        });
+        if (!master?.status) {
+          master!.status = true;
+          await master?.save()
+          await ctx.telegram.sendMessage(
+            master_id,
+            "Tabriklaymiz ma'lumotlaringiz ADMIN tomonidan tasdiqlandi🎉",
+          );
+          const contextMessage = ctx.callbackQuery?.message;
+
+          if (contextMessage?.message_id) {
+            await ctx.deleteMessage(contextMessage.message_id);
+          }
+          await ctx.replyWithHTML(`Usta ${master?.name} faollashtirildi`);
+        } else {
+          const contextMessage = ctx.callbackQuery?.message;
+
+          if (contextMessage?.message_id) {
+            await ctx.deleteMessage(contextMessage.message_id);
+          }
+          await ctx.replyWithHTML(`Usta ${master?.name} ni avval faollashtirgansiz`);
+        }
+      }
+    } catch (error) {
+      console.log('error on onConfirmMaster', error);
+    }
+  }
+
+  async onActionCheckAndDeleteAndConnectByAdmin(ctx: Context) {
+    try {
+      const user_id = ctx.from?.id;
+      const master = await this.masterModel.findOne({ where: { user_id } });
+      if (!master) {
+        await ctx.reply(`Siz avval Startni bosing`, {
+          parse_mode: 'HTML',
+          ...Markup.keyboard([['/start']]).resize(),
+        });
+      } else {
+        if ('data' in ctx.callbackQuery!) {
+          const data = ctx.callbackQuery.data;
+          switch (data) {
+            case 'sended_1':
+              if (master.status) {
+                await ctx.reply(
+                  "Tabriklaymiz ma'lumotlaringiz ADMIN tomonidan tasdiqlangan🎉",
+                );
+              } else {
+                await ctx.reply('Malumotlaringiz tasdiqlanishini kuting');
+              }
+              break;
+            case 'sended_2':
+              this.deleteMaster(ctx, user_id!);
+              break;
+            default:
+              break;
+          }
+        }
+      }
+    } catch (error) {
+      console.log('error on onActionCheckAndDeleteAndConnectByAdmin', error);
     }
   }
 
@@ -310,10 +474,7 @@ export class BotService {
               master.time_by_customer = userInput;
               master.last_state = 'finish';
               await master.save();
-              await ctx.reply("Siz ro'yxatdan otdingiz", {
-                parse_mode: 'HTML',
-                ...Markup.removeKeyboard(),
-              });
+              this.getMasterProfils(master, ctx);
               break;
             default:
               break;
@@ -347,6 +508,59 @@ export class BotService {
       }
     } catch (error) {
       console.log(`Error on Stop`, error);
+    }
+  }
+
+  async getMasterProfils(master: Master, ctx: Context) {
+    const message = `👤 Master Info:
+      📛 Name: ${master.name}
+      📱 Phone: ${master.phone_number}
+      ✅ Ustaxona nomi: ${master.workshop_name}
+      🏢 Manzili: ${master.address}
+      🎯 Mo'ljal: ${master.destination}
+      🏠 Locatsiya: ${master.location || 'Not Provided'}
+      ⏲️ Ishni boshlash vaqti: ${master.start_time}
+      ⏲️ Ishni yakunlash vaqti: ${master.end_time}
+      ⏳ Har bir mijoz uchun o'rtacha sarflanadigan vaqt: ${master.time_by_customer} daqiqa`;
+
+    const buttons = [
+      [
+        {
+          text: '🔄 Update',
+          callback_data: 'registr_1',
+        },
+        {
+          text: '❌ Bekor qilish',
+          callback_data: 'registr_2',
+        },
+      ],
+      [
+        {
+          text: '✅ Tasdiqlash',
+          callback_data: 'registr_3',
+        },
+      ],
+    ];
+    const contextMessage = ctx.callbackQuery?.message;
+
+    if (contextMessage?.message_id) {
+      await ctx.deleteMessage(contextMessage.message_id);
+    }
+    await ctx.reply(message, Markup.inlineKeyboard(buttons));
+  }
+
+  async deleteMaster(ctx: Context, user_id: number) {
+    try {
+      await this.masterModel.destroy({ where: { user_id } });
+      await ctx.reply(
+        `Sizning malumotlaringiz o'chirildi. Iltimos start tugmasini bosing.`,
+        {
+          parse_mode: 'HTML',
+          ...Markup.keyboard([['/start']]).resize(),
+        },
+      );
+    } catch (error) {
+      console.log(`Error on delete Master`, error);
     }
   }
 }
