@@ -41,7 +41,7 @@ export class BotService {
     try {
       const user_id = ctx.from?.id;
       const master = await this.masterModel.findOne({ where: { user_id } });
-
+      console.log(user_id);
       const workshop = [
         [
           {
@@ -257,10 +257,32 @@ export class BotService {
         });
         if (!master?.status) {
           master!.status = true;
-          await master?.save()
+          await master?.save();
           await ctx.telegram.sendMessage(
             master_id,
             "Tabriklaymiz ma'lumotlaringiz ADMIN tomonidan tasdiqlandi🎉",
+            Markup.inlineKeyboard([
+              [
+                {
+                  text: 'Mijozlar',
+                  callback_data: `tasdiq_1`,
+                },
+                {
+                  text: 'Vaqt',
+                  callback_data: `tasdiq_2`,
+                },
+                {
+                  text: 'Reyting',
+                  callback_data: `tasdiq_3`,
+                },
+              ],
+              [
+                {
+                  text: "Ma'lumotlarni o'zgartirish",
+                  callback_data: `tasdiq_4`,
+                },
+              ]
+            ]),
           );
           const contextMessage = ctx.callbackQuery?.message;
 
@@ -274,7 +296,9 @@ export class BotService {
           if (contextMessage?.message_id) {
             await ctx.deleteMessage(contextMessage.message_id);
           }
-          await ctx.replyWithHTML(`Usta ${master?.name} ni avval faollashtirgansiz`);
+          await ctx.replyWithHTML(
+            `Usta ${master?.name} ni avval faollashtirgansiz`,
+          );
         }
       }
     } catch (error) {
